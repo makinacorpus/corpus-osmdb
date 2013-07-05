@@ -59,6 +59,6 @@ osm-install-run-cron-{{region}}:
     - contents: |
                 #!/usr/bin/env bash
                 MAILTO="{{cfg.data.mail}}"
-                {{rdata.periodicity}} root {{cfg.data_root}}/{{region}}_diff_scripts/cron.sh
+                {{rdata.periodicity}} root su -l -c {{cfg.data_root}}/{{region}}_diff_scripts/cron.sh
 {% endif %}
 {% endfor %}
