@@ -142,13 +142,13 @@ osm-install-cron-{{region}}:
     - source: ''
     - contents: |
                 #!/usr/bin/env bash
-                LOG="{{cfg.data_root}}/log"
+                LOG="{{cfg.data_root}}/{{region}}.log"
                 lock="${0}.lock"
                 if [ -e "${lock}" ];then
                   echo "Locked ${0}";exit 1
                 fi
                 touch "${lock}"
-                salt-call --out="${LOG}" --retcode-passthrough -lall --local mc_project.run_task {{cfg.name}} task_minutediff region="{{region}}" 1>/dev/null 2>/dev/null
+                salt-call --out-file="${LOG}" --retcode-passthrough -lall --local mc_project.run_task {{cfg.name}} task_minutediff region="{{region}}" 1>/dev/null 2>/dev/null
                 ret="${?}"
                 rm -f "${lock}"
                 if [ "x${ret}" != "x0" ];then
