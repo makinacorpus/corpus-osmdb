@@ -1,0 +1,61 @@
+#
+# This file contains default values which are used
+# by the salt states deploying your project.
+# you may copy them to your relevant PILLAR file
+# before editing them.
+# If you need to add variables, this is where to begin.
+# Please keep defaults in there, but real passwords
+# must be putted inside pillar
+#
+# replace project_name in your pillar by
+# the current projectname
+# you can also merge parts of this file
+# with the relevant pillar
+makina-projects.projectname:
+  data:
+    mail: sysadmin@foo.com
+    pgver: 9.3
+    domain: "www.{name}.loc"
+    build:
+      - france
+    regions:
+      - france:
+          periodicity: "* */1 * * *"
+          ttl: {{30*24*60*60}}
+          initial_state: http://osm.personalwerk.de/replicate-sequences/?Y=2014&m=06&d=14&H=15&i=16&s=46&stream=minute#
+          #osm2pgql_args: -C 30000 -G -j -s -E 2154 -v -K
+          #osm2pgql_args: >
+          #               --number-processes 6 --cache-strategy optimized
+          #               -C 30000 -G -j -s -E 2154 -v -K
+          osm2pgql_args: >
+                         --number-processes 9 --cache-strategy optimized
+                         -C 30000 -G -j -s -E 2154 -v -K
+          pbf: http://download.geofabrik.de/europe/france-latest.osm.pbf
+          tmpfs_size: 3G
+    has_app: true
+    has_db: true
+# uncomment in pillar and add any setting
+# you can start to tune with pgtune (apt-get install pgtune)
+#    pg_optim:
+#      - default_statistics_target = 50
+#      - maintenance_work_mem = 832MB
+#      - constraint_exclusion = on
+#      - checkpoint_completion_target = 0.9
+#      - effective_cache_size = 10GB
+#      - work_mem = 88MB
+#      - wal_buffers = 8MB
+#      - checkpoint_segments = 16
+#      - shared_buffers = 3328MB
+#      - max_connections = 80
+    cron_periodicity: "*/10 * * * *"
+    password: "secret"
+    sysctls:
+# shmmax: valueInBytes*1024
+# shmall: valueInBytes*1024/4096
+      - kernel.shmall: null
+      - kernel.shmmax: null
+    db:
+      password: "{password}"
+      extra: {}
+
+# vim:set ft=yaml:
