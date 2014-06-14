@@ -113,7 +113,7 @@ do-replace-prod-{{region}}:
 do-replace-prod-{{region}}-perms:
   cmd.run:
     - watch_in:
-      - file: osm-install-cron
+      - file: osm-install-cron-{{region}}
     - watch:
       - cmd: do-replace-prod-{{region}}
     - user: postgres
