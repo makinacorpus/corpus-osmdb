@@ -20,7 +20,7 @@ makina-projects.projectname:
       - france
     regions:
       - france:
-          periodicity: "* */1 * * *"
+          periodicity: "*/10 * * * *"
           ttl: {{30*24*60*60}}
           initial_state: http://osm.personalwerk.de/replicate-sequences/?Y=2014&m=06&d=14&H=15&i=16&s=46&stream=minute#
           #osm2pgql_args: -C 30000 -G -j -s -E 2154 -v -K
