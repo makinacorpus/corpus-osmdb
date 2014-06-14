@@ -160,7 +160,7 @@ osm-install-run-cron-{{region}}:
   file.managed:
     - watch:
       - file: osm-install-cron-{{region}}
-    - name: /etc/cron.d/minutediff
+    - name: /etc/cron.d/minutediff-{{region}}
     - mode: 700
     - user: root
     - source: ''
