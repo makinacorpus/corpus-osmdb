@@ -58,6 +58,7 @@ first-minutediff-{{region}}-initialimport:
     - watch:
       - cmd: first-minutediff-{{region}}-status
   cmd.run:
+    - use_vt: true
     - unless: test -e "{{statusd}}/initial_import_{{region}}"
     - user: {{cfg.user}}
     - cwd: {{statusd}}
@@ -72,6 +73,7 @@ first-minutediff-{{region}}-initialimport:
 
 osm-import-{{region}}:
   cmd.run:
+    - use_vt: true
     - watch:
       - cmd: first-minutediff-{{region}}-initialimport
     - unless: test -e "{{statusd}}/initial_import_{{region}}"
@@ -127,6 +129,7 @@ minutediff-{{region}}-import-pre:
 
 osm-import-lastdiff-{{region}}:
   cmd.run:
+    - use_vt: true
     - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
       - cmd: minutediff-{{region}}-import-pre
@@ -149,6 +152,7 @@ osm-bordelcleanup-{{region}}:
     - watch:
       - cmd: osm-import-lastdiff-{{region}}
   cmd.run:
+    - use_vt: true
     - name: psql "postgresql://{{db}}:{{cfg.data.db.password}}@localhost:5432/{{db}}" -f "{{statusd}}/cleanup.sql"
     - user: {{cfg.user}}
     - watch:

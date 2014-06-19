@@ -56,6 +56,17 @@ copy-mountpbfintmpfs-{{region}}:
       - cmd: mountpbfintmpfs-{{region}}
     - watch_in:
       - cmd: do-import-{{region}}
+mcopy-mountpbfintmpfs-{{region}}:
+  file.managed:
+    - name: {{pbf}}
+    - source: ''
+    - user: {{cfg.user}}
+    - group: {{cfg.group}}
+    - mode: 755
+    - watch:
+      - file: copy-mountpbfintmpfs-{{region}}
+    - watch_in:
+      - cmd: do-import-{{region}}
 {% endif %}
 
 # create the tempory db
@@ -67,6 +78,7 @@ copy-mountpbfintmpfs-{{region}}:
 # run import
 do-import-{{region}}:
   cmd.run:
+    - use_vt: true
     - env:
         PGPASS: "{{cfg.data.db.password}}"
     - name: |
@@ -83,6 +95,7 @@ umountpbfintmpfs-{{region}}:
     - onlyif: test "x$(mount|grep tmpfs|grep -q "{{mount}}";echo $?)" = "x0"
     - watch:
       - file: mountpbfintmpfs-{{region}}
+      - cmd: do-import-{{region}}
     - watch_in:
       - cmd: do-replace-prod-{{region}}
 {% set prodswitch = "{0}/skip_prod_{1}".format(cfg.data_root, region) %}
@@ -90,6 +103,7 @@ umountpbfintmpfs-{{region}}:
 # replace production database by import
 do-replace-prod-{{region}}:
   cmd.run:
+    - use_vt: true
     - watch:
       - cmd: do-import-{{region}}
     - user: root

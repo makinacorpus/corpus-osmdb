@@ -27,9 +27,12 @@ makina-projects.projectname:
           #osm2pgql_args: >
           #               --number-processes 6 --cache-strategy optimized
           #               -C 30000 -G -j -s -E 2154 -v -K
+          #osm2pgql_args: >
+          #               --number-processes 9 --cache-strategy optimized
+          #               -C 30000 -G -j -s -E 2154 -v -K
           osm2pgql_args: >
                          --number-processes 9 --cache-strategy optimized
-                         -C 30000 -G -j -s -E 2154 -v -K
+                         -C 30000 -G -j -s -v -K
           pbf: http://download.geofabrik.de/europe/france-latest.osm.pbf
           tmpfs_size: 3G
     has_app: true
