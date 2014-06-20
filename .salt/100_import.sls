@@ -114,7 +114,7 @@ do-replace-prod-{{region}}:
               ret="$1";shift;echo "${@}";if [ "x${ret}" != "x0" ];then exit 1;fi
             }
             if [ "x$(echo '\l'|su postgres -c psql -- -t|awk '{print $1}'|grep -v '|'|sort -u|egrep -q "^{{prod_db}}$";echo $?)" = "x0" ];then
-              dropdb "{{prod_db}}"
+              su postgres -c 'dropdb "{{prod_db}}"'
             fi
             die "${?}" dropdb
             echo 'alter database "{{db}}" rename to "{{prod_db}}"'| su postgres -c psql
