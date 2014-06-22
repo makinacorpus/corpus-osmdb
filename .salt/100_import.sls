@@ -118,10 +118,10 @@ do-replace-prod-{{region}}:
             fi
             die "${?}" dropdb
             echo 'alter database "{{db}}" rename to "{{prod_db}}"'| su postgres -c psql
+            touch "{{prodswitch}}"
             die "${?}" rename
             echo 'alter database "{{prod_db}}" owner to "{{prod_db}}_owners"'| su postgres -c  psql
             die "${?}" grant
-            touch "{{prodswitch}}"
     - onlyif: test "x$(echo '\l'|su postgres -c psql -- -t|awk '{print $1}'|grep -v '|'|sort -u|egrep -q "^{{db}}$";echo $?)" = "x0"
 
 do-replace-prod-{{region}}-perms:

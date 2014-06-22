@@ -22,14 +22,7 @@ makina-projects.projectname:
       - france:
           periodicity: "*/10 * * * *"
           ttl: {{30*24*60*60}}
-          initial_state: http://osm.personalwerk.de/replicate-sequences/?Y=2014&m=06&d=14&H=15&i=16&s=46&stream=minute#
-          #osm2pgql_args: -C 30000 -G -j -s -E 2154 -v -K
-          #osm2pgql_args: >
-          #               --number-processes 6 --cache-strategy optimized
-          #               -C 30000 -G -j -s -E 2154 -v -K
-          #osm2pgql_args: >
-          #               --number-processes 9 --cache-strategy optimized
-          #               -C 30000 -G -j -s -E 2154 -v -K
+          initial_state: http://osm.personalwerk.de/replicate-sequences/?Y=2014&m=06&d=21&H=15&i=13&s=46&stream=minute#
           osm2pgql_args: >
                          --number-processes 9 --cache-strategy optimized
                          -C 30000 -G -j -s -v -K

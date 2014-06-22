@@ -6,6 +6,7 @@
 {% set db = cfg.data.db %}
 include:
   - makina-states.services.gis.postgis
+  - makina-states.services.gis.ubuntugis
 
 {% set pkgssettings = salt['mc_pkgs.settings']() %}
 {% if grains['os_family'] in ['Debian'] %}
@@ -30,6 +31,13 @@ include:
       - pkgrepo: {{cfg.name}}-prereqs
     - watch_in:
       - mc_proxy: makina-postgresql-pre-base
+
+pgrouting-{{cfg.name}}:
+  pkg.latest:
+    - pkgs:
+      - postgresql-9.3-pgrouting
+    - watch:
+      - pkgrepo: ubuntugis-pgrouting-base
 
 {%for dsysctl in data.sysctls %}
 {%for sysctl, val in dsysctl.items() %}
