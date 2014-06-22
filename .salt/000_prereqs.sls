@@ -81,6 +81,7 @@ reload-sysctls-{{cfg.name}}:
 
 buildosmconvert-{{cfg.name}}:
   cmd.run:
+    - unless: test -e {{cfg.data_root}}/osmconvert
     - name: wget -O - http://m.m.i24.cc/osmconvert.c | cc -x c - -lz -O3 -o osmconvert
     - user: {{cfg.user}}
     - cwd: {{cfg.data_root}}
