@@ -41,6 +41,7 @@ first-minutediff-{{region}}:
 first-minutediff-{{region}}-status:
   cmd.run:
     - name: curl "{{rdata.initial_state}}" > {{statusd}}/state.txt
+    - unless: test -e "{{statusd}}/initial_import_{{region}}"
     - user: {{cfg.user}}
     - watch:
       - cmd: first-minutediff-{{region}}
@@ -102,7 +103,7 @@ minutediff-{{region}}-import-ttl:
 # grab the last data for 3 hours each hour to be sure everything is ok
 minutediff-{{region}}-import-pre:
   file.managed:
-    - name: {{statusd}}/genmport.py
+    - name: {{statusd}}/genimport.py
     - user: {{cfg.user}}
     - mode: 755
     - watch:
@@ -111,6 +112,7 @@ minutediff-{{region}}-import-pre:
                 #!/usr/bin/env python
                 import datetime
                 import urllib2
+                import sys
                 dt = datetime.datetime.now() - datetime.timedelta(hours=3)
                 with open('{{statusd}}/state.txt', 'w') as fic:
                   content = urllib2.urlopen(
@@ -122,17 +124,26 @@ minutediff-{{region}}-import-pre:
                   fic.write(content)
   cmd.run:
     - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
-    - name: {{statusd}}/genmport.py
+    - name: {{statusd}}/genimport.py
     - user: {{cfg.user}}
     - watch:
       - file: minutediff-{{region}}-import-pre
+
+osm-pull-lastdiff-{{region}}:
+  cmd.run:
+    - use_vt: true
+    - watch:
+      - cmd: minutediff-{{region}}-import-pre
+    - user: {{cfg.user}}
+    - cwd: {{statusd}}
+    - name: osmosis --rri workingDirectory=. --wxc changes.osc.gz
 
 osm-import-lastdiff-{{region}}:
   cmd.run:
     - use_vt: true
     - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
-      - cmd: minutediff-{{region}}-import-pre
+      - cmd: osm-pull-lastdiff-{{region}}
     - env:
         PGPASS: "{{cfg.data.db.password}}"
     - user: {{cfg.user}}
