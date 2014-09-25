@@ -3,7 +3,7 @@
 {% if cfg.data.has_db %}
 {% set settings = salt['mc_dbsmartbackup.settings']() %}
 {% set data = cfg.data %}
-{% for i in ['mongod', 'slapd', 'mysql', 'postgresql'] %}
+{% for i in settings.types %}
 /etc/dbsmartbackup/{{i}}.conf.local:
   file.managed:
     - contents: |
