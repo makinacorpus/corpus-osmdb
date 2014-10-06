@@ -162,7 +162,7 @@ osm-install-cron-{{region}}:
                   echo "Locked ${0}";exit 1
                 fi
                 touch "${lock}"
-                salt-call --out-file="${LOG}" --retcode-passthrough -lall --local mc_project.run_task {{cfg.name}} task_minutediff region="{{region}}" 1>/dev/null 2>/dev/null
+                salt-call --local --out-file="${LOG}" --retcode-passthrough -lall --local mc_project.run_task {{cfg.name}} task_minutediff region="{{region}}" 1>/dev/null 2>/dev/null
                 ret="${?}"
                 rm -f "${lock}"
                 if [ "x${ret}" != "x0" ];then
