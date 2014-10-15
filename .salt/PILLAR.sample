@@ -13,6 +13,11 @@
 # with the relevant pillar
 makina-projects.projectname:
   data:
+    keep_days: '1'
+    keep_lasts: '1'
+    keep_monthes: '0'
+    keep_weeks: '0'
+    keep_logs: '1'
     mail: sysadmin@foo.com
     pgver: 9.3
     domain: "www.{name}.loc"
