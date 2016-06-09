@@ -1,5 +1,4 @@
 {% set cfg = opts.ms_project %}
-{% if cfg.data.has_db %}
 include:
   - makina-states.services.db.postgresql
 {% import "makina-states/services/db/postgresql/init.sls" as pgsql with context %}
@@ -24,6 +23,3 @@ include:
 {{ pgsql.postgresql_user(dbdata.user, password=dbdata.password, db=db) }}
 {%endfor %}
 {%endfor%}
-{% else %}
-no-op: {mc_proxy.hook: []}
-{% endif %}

@@ -2,11 +2,12 @@
 include:
   - makina-states.services.db.postgresql.hooks
 {% set cfg = opts.ms_project %}
-{% if cfg.data.has_db %}
 {% set data = cfg.data %}
 {% for dregion in data.regions%}
 {% for region, rdata in dregion.items() %}
 {% set name = 'planet_{0}'.format(region) %}
+{% set prod_db = 'planet_'+region %}
+{% set db = 'planet_'+region+'_tmp' %}
 {% if region in data.build %}
 {% set droot = cfg.data_root%}
 {% set fname = rdata.pbf.split('/')[-1] %}
@@ -14,6 +15,12 @@ include:
                         '{0}.md5'.format(rdata.pbf)) %}
 {% set pbf = "/".join([droot, fname]) %}
 {% set orig_pbf = pbf %}
+{% set tmpfs_size = rdata.get('tmpfs_size', 0) %}
+
+# create the tempory db
+{{ pgsql.postgresql_db(db, template="postgis", wait_for_template=False) }}
+{{ pgsql.postgresql_user(db, password=cfg.data.db.password, db=db) }}
+
 # download full osm export
 download-pbf-{{region}}:
   file.managed:
@@ -26,6 +33,7 @@ download-pbf-{{region}}:
     - unless: test -e {{droot}}/skip_import_{{region}}
     # do not redownload big files
     - onlyif: test $(stat -c "%s" "{{pbf}}" 2>/dev/null||echo 0) -lt 1000000000
+
 {% if rdata.get('tmpfs_size', '') %}
 {% set mount = "/".join([droot, fname+'_fs']) %}
 {% set pbf = "/".join([droot, fname+'_fs', fname]) %}
@@ -40,11 +48,14 @@ mountpbfintmpfs-{{region}}:
     - watch:
       - file: download-pbf-{{region}}
   cmd.run:
-    - name: mount -t tmpfs none "{{mount}}" -o size={{rdata.tmpfs_size}},rw,users,uid={{cfg.user}}
+    - name: mount -t tmpfs none "{{mount}}" -o size={{tmpfs_size}},rw,users,uid={{cfg.user}}
     - unless: test -e {{droot}}/skip_import_{{region}}
     - onlyif: test "x$(mount|grep tmpfs|grep -q "{{mount}}";echo $?)" != "x0"
     - watch:
       - file: mountpbfintmpfs-{{region}}
+    - watch_in:
+      - cmd: copy-mountpbfintmpfs-{{region}}
+
 copy-mountpbfintmpfs-{{region}}:
   file.copy:
     - name: {{pbf}}
@@ -53,7 +64,7 @@ copy-mountpbfintmpfs-{{region}}:
     - group: {{cfg.group}}
     - unless: test -e {{droot}}/skip_import_{{region}}
     - watch:
-      - cmd: mountpbfintmpfs-{{region}}
+      - file: mountpbfintmpfs-{{region}}
     - watch_in:
       - cmd: do-import-{{region}}
 mcopy-mountpbfintmpfs-{{region}}:
@@ -69,12 +80,6 @@ mcopy-mountpbfintmpfs-{{region}}:
       - cmd: do-import-{{region}}
 {% endif %}
 
-# create the tempory db
-{% set prod_db = 'planet_'+region %}
-{% set db = 'planet_'+region+'_tmp' %}
-{{ pgsql.postgresql_db(db, template="postgis", wait_for_template=False) }}
-{{ pgsql.postgresql_user(db, password=cfg.data.db.password, db=db) }}
-
 # run import
 do-import-{{region}}:
   cmd.run:
@@ -82,13 +87,16 @@ do-import-{{region}}:
     - env:
         PGPASS: "{{cfg.data.db.password}}"
     - name: |
-            time osm2pgsql -c {{rdata.osm2pgql_args.strip()}} \
-            -H 127.0.0.1 -d {{db}} -U {{db}} {{pbf}} && \
-            touch {{droot}}/skip_import_{{region}}
+            time \
+              osm2pgsql -c {{rdata.osm2pgql_args.strip()}} \
+                -H 127.0.0.1 -d {{db}} -U {{db}} {{pbf}} && \
+                  touch {{droot}}/skip_import_{{region}}
     - unless: test -e {{droot}}/skip_import_{{region}}
     - user: {{cfg.user}}
     - watch:
       - file: download-pbf-{{region}}
+
+{% if rdata.get('tmpfs_size', '') %}
 umountpbfintmpfs-{{region}}:
   cmd.run:
     - name: umount "{{mount}}"
@@ -98,6 +106,8 @@ umountpbfintmpfs-{{region}}:
       - cmd: do-import-{{region}}
     - watch_in:
       - cmd: do-replace-prod-{{region}}
+{% endif %}
+
 {% set prodswitch = "{0}/skip_prod_{1}".format(cfg.data_root, region) %}
 
 # replace production database by import
@@ -158,11 +168,13 @@ osm-install-cron-{{region}}:
                 #!/usr/bin/env bash
                 LOG="{{cfg.data_root}}/{{region}}.log"
                 lock="${0}.lock"
+                find "${lock}" -type f -mmin +60 -delete 1>/dev/null 2>&1
                 if [ -e "${lock}" ];then
                   echo "Locked ${0}";exit 1
                 fi
                 touch "${lock}"
-                salt-call --local --out-file="${LOG}" --retcode-passthrough -lall --local mc_project.run_task {{cfg.name}} task_minutediff region="{{region}}" 1>/dev/null 2>/dev/null
+                salt-call --local --out-file="${LOG}" --retcode-passthrough -lall --local \
+                      mc_project.run_task {{cfg.name}} task_minutediff region="{{region}}" 1>/dev/null 2>/dev/null
                 ret="${?}"
                 rm -f "${lock}"
                 if [ "x${ret}" != "x0" ];then
@@ -185,8 +197,3 @@ osm-install-run-cron-{{region}}:
 {%endif%}
 {%endfor%}
 {%endfor%}
-
-
-{% else %}
-no-op: {mc_proxy.hook: []}
-{%endif%}

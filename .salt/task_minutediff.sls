@@ -9,7 +9,7 @@
 YOU MUST SELECT A REGION via region=arg!
 {% endif %}
 
-{% if cfg.data.has_db and pregion%}
+{% if pregion%}
 {% for dregion in data.regions %}
 {% for region, rdata in dregion.items() %}
 {% set name = 'planet_{0}'.format(region) %}
