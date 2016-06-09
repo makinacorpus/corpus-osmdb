@@ -2,9 +2,9 @@
 include:
   - makina-states.services.db.postgresql.hooks
 {% set cfg = opts.ms_project %}
+{% if cfg.data.has_db %}
 {% set data = cfg.data %}
-{% for dregion in data.regions%}
-{% for region, rdata in dregion.items() %}
+{% for region, rdata in data.regions.items() %}
 {% set name = 'planet_{0}'.format(region) %}
 {% set prod_db = 'planet_'+region %}
 {% set db = 'planet_'+region+'_tmp' %}
@@ -196,4 +196,8 @@ osm-install-run-cron-{{region}}:
                 {{rdata.periodicity}} root {{cfg.data_root}}/minutediff-{{region}}
 {%endif%}
 {%endfor%}
-{%endfor%}
+
+
+{% else %}
+no-op: {mc_proxy.hook: []}
+{%endif%}

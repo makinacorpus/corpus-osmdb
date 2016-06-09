@@ -6,8 +6,7 @@ include:
 {% set ver = data.pgver%}
 {% set db = cfg.data.db %}
 {% set dbgroups = []%}
-{% for dregion in data.regions%}
-{% for region, rdata in dregion.items() %}
+{% for region, rdata in data.regions.items() %}
 {% for suf in ['', '_tmp'] %}
 {% set name = 'planet_{0}{1}'.format(region, suf) %}
 {% do dbgroups.append('{0}_owners'.format(name)) %}
@@ -22,4 +21,3 @@ include:
 {{ pgsql.postgresql_db(db, template="postgis", wait_for_template=False) }}
 {{ pgsql.postgresql_user(dbdata.user, password=dbdata.password, db=db) }}
 {%endfor %}
-{%endfor%}

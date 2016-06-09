@@ -4,14 +4,13 @@
 # this will KeyError if not given
 {% set cfg = opts.ms_project %}
 {% set data = cfg.data %}
-{% set pregion = data.get('region', None) %}
+{% set pregion = data.get('regions', None) %}
 {% if not pregion %}
 YOU MUST SELECT A REGION via region=arg!
 {% endif %}
 
 {% if pregion%}
-{% for dregion in data.regions %}
-{% for region, rdata in dregion.items() %}
+{% for region, rdata in pregion.items() %}
 {% set name = 'planet_{0}'.format(region) %}
 {% if region in data.build and region == pregion %}
 {% set droot = cfg.data_root%}
@@ -170,7 +169,6 @@ osm-bordelcleanup-{{region}}:
       - file: osm-bordelcleanup-{{region}}
 #}
 {%endif%}
-{%endfor%}
 {%endfor%}
 {% else %}
 no-op: {mc_proxy.hook: []}
