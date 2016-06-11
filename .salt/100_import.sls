@@ -2,7 +2,6 @@
 include:
   - makina-states.services.db.postgresql.hooks
 {% set cfg = opts.ms_project %}
-{% if cfg.data.has_db %}
 {% set data = cfg.data %}
 {% for region, rdata in data.regions.items() %}
 {% set name = 'planet_{0}'.format(region) %}
@@ -82,18 +81,30 @@ mcopy-mountpbfintmpfs-{{region}}:
 
 # run import
 do-import-{{region}}:
-  cmd.run:
-    - use_vt: true
-    - env:
-        PGPASS: "{{cfg.data.db.password}}"
-    - name: |
-            time \
-              osm2pgsql -c {{rdata.osm2pgql_args.strip()}} \
+  file.managed:
+    - name: {{cfg.data_root}}/import_planet_{{region}}.sh
+    - mode: 750
+    - user: {{cfg.user}}
+    - group: {{cfg.group}}
+    - contents: |
+           #!/usr/bin/env bash
+           export PGPASS="{{cfg.data.db.password}}"
+           echo "BEGIN: $(date)"
+           osm2pgsql -c {{rdata.osm2pgql_args.strip()}} \
                 -H 127.0.0.1 -d {{db}} -U {{db}} {{pbf}} && \
-                  touch {{droot}}/skip_import_{{region}}
+                touch {{droot}}/skip_import_{{region}}
+           ret=$?
+           echo "END: $(date)"
+           exit $ret
+  cmd.run:
+    - name: >
+       {{cfg.data_root}}/import_planet_{{region}}.sh
+       > {{cfg.data_root}}/import_planet_{{region}}.sh.stdout
+       2> {{cfg.data_root}}/import_planet_{{region}}.sh.stderr
     - unless: test -e {{droot}}/skip_import_{{region}}
     - user: {{cfg.user}}
     - watch:
+      - file: do-import-{{region}}
       - file: download-pbf-{{region}}
 
 {% if rdata.get('tmpfs_size', '') %}
@@ -196,8 +207,3 @@ osm-install-run-cron-{{region}}:
                 {{rdata.periodicity}} root {{cfg.data_root}}/minutediff-{{region}}
 {%endif%}
 {%endfor%}
-
-
-{% else %}
-no-op: {mc_proxy.hook: []}
-{%endif%}

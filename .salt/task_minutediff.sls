@@ -4,21 +4,19 @@
 # this will KeyError if not given
 {% set cfg = opts.ms_project %}
 {% set data = cfg.data %}
-{% set pregion = data.get('regions', None) %}
-{% if not pregion %}
-YOU MUST SELECT A REGION via region=arg!
-{% endif %}
-
-{% if pregion%}
+{% set pregion = data.get('regions', {}) %}
 {% for region, rdata in pregion.items() %}
 {% set name = 'planet_{0}'.format(region) %}
-{% if region in data.build and region == pregion %}
+{% if region in data.build %}
 {% set droot = cfg.data_root%}
 {% set db = 'planet_'+region %}
 
 {% set statusd = "{0}/{1}-osmdif".format(droot, region) %}
 {% set status = "{0}/status.txt".format(statusd) %}
 # update last minute diff status file
+
+minutediff-{{region}}-scripts:
+  mc_proxy.hook : []
 
 first-minutediff-{{region}}:
   file.directory:
@@ -32,59 +30,102 @@ first-minutediff-{{region}}:
     - watch:
       - file: first-minutediff-{{region}}
     - cwd: {{statusd}}
-    - name: |
-            osmosis --read-replication-interval-init workingDirectory={{statusd}}
+    - name: osmosis --read-replication-interval-init workingDirectory={{statusd}}
     - env:
         WORKDIR_OSM: {{statusd}}
 
 first-minutediff-{{region}}-status:
   cmd.run:
     - name: curl "{{rdata.initial_state}}" > {{statusd}}/state.txt
-    - unless: test -e "{{statusd}}/initial_import_{{region}}"
+    - unless: test -e "{{statusd}}/state.txt"
     - user: {{cfg.user}}
     - watch:
       - cmd: first-minutediff-{{region}}
 
-first-minutediff-{{region}}-initialimport:
+first-minutediff-{{region}}-initialimport-t:
   file.managed:
     - unless: test -e "{{statusd}}/initial_import_{{region}}"
     - name: {{statusd}}/configuration.txt
     - source: salt://makina-projects/{{cfg.name}}/files/configuration.txt
+    - makedirs: true
+    - mode: 644
     - user: {{cfg.user}}
-    - group: {{cfg.user}}
+    - group: {{cfg.group}}
     - template: jinja
     - defaults:
         ttl: {{rdata.ttl}}
     - watch:
       - cmd: first-minutediff-{{region}}-status
+    - watch_in:
+      - mc_proxy: minutediff-{{region}}-scripts
+
+first-minutediff-{{region}}-initialimport:
+  file.managed:
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/ftosmosis.sh
+    - contents: |
+           #!/usr/bin/env bash
+           cd {{statusd}} || exit 1
+           rm -f download.lock
+           echo "BEGIN: $(date)"
+           export WORKDIR_OSM={{statusd}}
+           osmosis --read-replication-interval workingDirectory=. \
+              --simplify-change --write-xml-change changes.osc.gz && \
+              touch "{{statusd}}/initial_osmosis{{region}}"
+           ret=$?
+           echo "END: $(date)"
+           exit $ret
+    - unless: >
+            test -e "{{statusd}}/initial_osmosis{{region}}"
+            || test -e "{{statusd}}/initial_import_{{region}}"
+    - mode: 755
+    - makedirs: true
+    - user: {{cfg.user}}
+    - group: {{cfg.group}}
+    - template: jinja
+    - watch_in:
+      - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
-    - use_vt: true
+    - name: >
+       {{cfg.data_root}}/{{region}}_diff_scripts/ftosmosis.sh
+       > {{cfg.data_root}}/{{region}}_diff_scripts/ftosmosis.sh.stdout
+       2> {{cfg.data_root}}/{{region}}_diff_scripts/ftosmosis.sh.stderr
     - unless: test -e "{{statusd}}/initial_import_{{region}}"
     - user: {{cfg.user}}
-    - cwd: {{statusd}}
     - watch:
-      - file: first-minutediff-{{region}}-initialimport
-    - name: |
-            rm -f download.lock
-            osmosis --read-replication-interval workingDirectory="{{statusd}}" \
-              --simplify-change --write-xml-change changes.osc.gz
-    - env:
-        WORKDIR_OSM: {{statusd}}
+      - mc_proxy: minutediff-{{region}}-scripts
+      - file: first-minutediff-{{region}}-initialimport-t
 
 osm-import-{{region}}:
-  cmd.run:
-    - use_vt: true
-    - watch:
-      - cmd: first-minutediff-{{region}}-initialimport
-    - unless: test -e "{{statusd}}/initial_import_{{region}}"
-    - env:
-        PGPASS: "{{cfg.data.db.password}}"
-    - user: {{cfg.user}}
-    - cwd: {{statusd}}
-    - name: |
-            time osm2pgsql -a {{rdata.osm2pgql_args.strip()}} \
+  file.managed:
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/ftosmpgsql.sh
+    - contents: |
+           #!/usr/bin/env bash
+           cd {{statusd}} || exit 1
+           rm -f download.lock
+           echo "BEGIN: $(date)"
+           export PGPASS="{{cfg.data.db.password}}"
+           osm2pgsql -a {{rdata.osm2pgql_args.strip()}} \
             -H 127.0.0.1 -d "{{db}}" -U "{{db}}" changes.osc.gz && \
             touch "{{statusd}}/initial_import_{{region}}"
+           ret=$?
+           echo "END: $(date)"
+           exit $ret
+    - mode: 755
+    - user: {{cfg.user}}
+    - group: {{cfg.group}}
+    - template: jinja
+    - watch_in:
+      - mc_proxy: minutediff-{{region}}-scripts
+  cmd.run:
+    - name: >
+       {{cfg.data_root}}/{{region}}_diff_scripts/ftosmpgsql.sh
+       > {{cfg.data_root}}/{{region}}_diff_scripts/ftosmpgsql.sh.stdout
+       2> {{cfg.data_root}}/{{region}}_diff_scripts/ftosmpgsql.sh.stderr
+    - user: {{cfg.user}}
+    - unless: test -e "{{statusd}}/initial_import_{{region}}"
+    - watch:
+      - cmd: first-minutediff-{{region}}-initialimport
+      - mc_proxy: minutediff-{{region}}-scripts
 
 # limit interval to 3 days max
 minutediff-{{region}}-import-ttl:
@@ -102,11 +143,9 @@ minutediff-{{region}}-import-ttl:
 # grab the last data for 3 hours each hour to be sure everything is ok
 minutediff-{{region}}-import-pre:
   file.managed:
-    - name: {{statusd}}/genimport.py
+    - name: {{statusd}}/{{region}}_diff_scripts/genimport.py
     - user: {{cfg.user}}
     - mode: 755
-    - watch:
-      - file: minutediff-{{region}}-import-ttl
     - contents: |
                 #!/usr/bin/env python
                 import datetime
@@ -115,61 +154,79 @@ minutediff-{{region}}-import-pre:
                 dt = datetime.datetime.now() - datetime.timedelta(hours=3)
                 with open('{{statusd}}/state.txt', 'w') as fic:
                   content = urllib2.urlopen(
-                    'http://osm.personalwerk.de/'
-                    'replicate-sequences/'
-                    '?Y={0}&m={1}&d={2}&H={3}&i={4}&s={5}&stream=minute'.format(
+                    '{{data.diffurl}}'.format(
                       dt.year, dt.month, dt.day,
                       dt.hour, dt.minute, dt.second)).read()
                   fic.write(content)
+    - watch_in:
+      - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
     - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
-    - name: {{statusd}}/genimport.py
+    - name: {{statusd}}/{{region}}_diff_scripts/genimport.py
     - user: {{cfg.user}}
     - watch:
-      - file: minutediff-{{region}}-import-pre
+      - file: minutediff-{{region}}-import-ttl
+      - mc_proxy: minutediff-{{region}}-scripts
 
 osm-pull-lastdiff-{{region}}:
+  file.managed:
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/osmosis.sh
+    - contents: |
+           #!/usr/bin/env bash
+           cd {{statusd}} || exit 1
+           echo "BEGIN: $(date)"
+           export WORKDIR_OSM={{statusd}}
+           osmosis --read-replication-interval workingDirectory=. \
+              --write-xml-change changes.osc.gz
+           ret=$?
+           echo "END: $(date)"
+           exit $ret
+    - makedirs: true
+    - mode: 755
+    - user: {{cfg.user}}
+    - group: {{cfg.group}}
+    - template: jinja
+    - watch_in:
+      - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
-    - use_vt: true
+    - name: >
+       {{cfg.data_root}}/{{region}}_diff_scripts/osmosis.sh
+       > {{cfg.data_root}}/{{region}}_diff_scripts/osmosis.sh.stdout
+       2> {{cfg.data_root}}/{{region}}_diff_scripts/osmosis.sh.stderr
+    - user: {{cfg.user}}
+    - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
       - cmd: minutediff-{{region}}-import-pre
-    - user: {{cfg.user}}
-    - cwd: {{statusd}}
-    - name: osmosis --rri workingDirectory=. --wxc changes.osc.gz
+      - mc_proxy: minutediff-{{region}}-scripts
 
 osm-import-lastdiff-{{region}}:
+  file.managed:
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/osmpgsql.sh
+    - contents: |
+           #!/usr/bin/env bash
+           cd {{statusd}} || exit 1
+           echo "BEGIN: $(date)"
+           osm2pgsql -a {{rdata.osm2pgql_args.strip()}} \
+            -H 127.0.0.1 -d "{{db}}" -U "{{db}}" changes.osc.gz
+           ret=$?
+           echo "END: $(date)"
+           exit $ret
+    - makedirs: true
+    - mode: 755
+    - user: {{cfg.user}}
+    - group: {{cfg.group}}
+    - template: jinja
+    - watch_in:
+      - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
-    - use_vt: true
+    - name: >
+       {{cfg.data_root}}/{{region}}_diff_scripts/osmpgsql.sh
+       > {{cfg.data_root}}/{{region}}_diff_scripts/osmpgsql.sh.stdout
+       2> {{cfg.data_root}}/{{region}}_diff_scripts/osmpgsql.sh.stderr
+    - user: {{cfg.user}}
     - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
       - cmd: osm-pull-lastdiff-{{region}}
-    - env:
-        PGPASS: "{{cfg.data.db.password}}"
-    - user: {{cfg.user}}
-    - cwd: {{statusd}}
-    - name: |
-            time osm2pgsql -a {{rdata.osm2pgql_args.strip()}} \
-            -H 127.0.0.1 -d "{{db}}" -U "{{db}}" changes.osc.gz
-{#
-http://wiki.openstreetmap.org/wiki/User:Stephankn/knowledgebase#Cleanup_of_ways_outside_the_bounding_box
-seems too much harmfull for now, need investigating
-osm-bordelcleanup-{{region}}:
-  file.managed:
-    - name: {{statusd}}/cleanup.sql
-    - source: salt://makina-projects/{{cfg.name}}/files/cleanup.sql
-    - user: {{cfg.user}}
-    - mode: 755
-    - watch:
-      - cmd: osm-import-lastdiff-{{region}}
-  cmd.run:
-    - use_vt: true
-    - name: psql "postgresql://{{db}}:{{cfg.data.db.password}}@localhost:5432/{{db}}" -f "{{statusd}}/cleanup.sql"
-    - user: {{cfg.user}}
-    - watch:
-      - file: osm-bordelcleanup-{{region}}
-#}
+      - mc_proxy: minutediff-{{region}}-scripts
 {%endif%}
 {%endfor%}
-{% else %}
-no-op: {mc_proxy.hook: []}
-{%endif%}
