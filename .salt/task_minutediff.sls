@@ -11,7 +11,7 @@
 {% set droot = cfg.data_root%}
 {% set db = 'planet_'+region %}
 
-{% set statusd = "{0}/{1}-osmdif".format(droot, region) %}
+{% set statusd = "{0}/{1}_diff".format(droot, region) %}
 {% set status = "{0}/status.txt".format(statusd) %}
 # update last minute diff status file
 
@@ -70,15 +70,15 @@ first-minutediff-{{region}}-initialimport:
            export WORKDIR_OSM={{statusd}}
            osmosis --read-replication-interval workingDirectory=. \
               --simplify-change --write-xml-change changes.osc.gz && \
-              touch "{{statusd}}/initial_osmosis{{region}}"
+              touch "{{statusd}}/initial_osmosis_{{region}}"
            ret=$?
            echo "END: $(date)"
            exit $ret
     - unless: >
-            test -e "{{statusd}}/initial_osmosis{{region}}"
+            test -e "{{statusd}}/initial_osmosis_{{region}}"
             || test -e "{{statusd}}/initial_import_{{region}}"
-    - mode: 755
     - makedirs: true
+    - mode: 750
     - user: {{cfg.user}}
     - group: {{cfg.group}}
     - template: jinja
@@ -97,7 +97,7 @@ first-minutediff-{{region}}-initialimport:
 
 osm-import-{{region}}:
   file.managed:
-    - name: {{cfg.data_root}}/{{region}}_diff_scripts/ftosmpgsql.sh
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/ftosm2pgsql.sh
     - contents: |
            #!/usr/bin/env bash
            cd {{statusd}} || exit 1
@@ -110,7 +110,8 @@ osm-import-{{region}}:
            ret=$?
            echo "END: $(date)"
            exit $ret
-    - mode: 755
+    - makedirs: true
+    - mode: 750
     - user: {{cfg.user}}
     - group: {{cfg.group}}
     - template: jinja
@@ -118,9 +119,9 @@ osm-import-{{region}}:
       - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
     - name: >
-       {{cfg.data_root}}/{{region}}_diff_scripts/ftosmpgsql.sh
-       > {{cfg.data_root}}/{{region}}_diff_scripts/ftosmpgsql.sh.stdout
-       2> {{cfg.data_root}}/{{region}}_diff_scripts/ftosmpgsql.sh.stderr
+       {{cfg.data_root}}/{{region}}_diff_scripts/ftosm2pgsql.sh
+       > {{cfg.data_root}}/{{region}}_diff_scripts/ftosm2pgsql.sh.stdout
+       2> {{cfg.data_root}}/{{region}}_diff_scripts/ftosm2pgsql.sh.stderr
     - user: {{cfg.user}}
     - unless: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
@@ -143,15 +144,16 @@ minutediff-{{region}}-import-ttl:
 # grab the last data for 3 hours each hour to be sure everything is ok
 minutediff-{{region}}-import-pre:
   file.managed:
-    - name: {{statusd}}/{{region}}_diff_scripts/genimport.py
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/genimport.py
     - user: {{cfg.user}}
-    - mode: 755
+    - mode: 750
     - contents: |
                 #!/usr/bin/env python
                 import datetime
                 import urllib2
                 import sys
-                dt = datetime.datetime.now() - datetime.timedelta(hours=3)
+                hours = int({{rdata.get('diff_hours', 1)}})
+                dt = datetime.datetime.now() - datetime.timedelta(hours=hours)
                 with open('{{statusd}}/state.txt', 'w') as fic:
                   content = urllib2.urlopen(
                     '{{data.diffurl}}'.format(
@@ -161,8 +163,8 @@ minutediff-{{region}}-import-pre:
     - watch_in:
       - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
-    - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
-    - name: {{statusd}}/{{region}}_diff_scripts/genimport.py
+    - onlyif: test -e "{{cfg.data_root}}/initial_import_{{region}}"
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/genimport.py
     - user: {{cfg.user}}
     - watch:
       - file: minutediff-{{region}}-import-ttl
@@ -182,7 +184,7 @@ osm-pull-lastdiff-{{region}}:
            echo "END: $(date)"
            exit $ret
     - makedirs: true
-    - mode: 755
+    - mode: 750
     - user: {{cfg.user}}
     - group: {{cfg.group}}
     - template: jinja
@@ -201,18 +203,19 @@ osm-pull-lastdiff-{{region}}:
 
 osm-import-lastdiff-{{region}}:
   file.managed:
-    - name: {{cfg.data_root}}/{{region}}_diff_scripts/osmpgsql.sh
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/osm2pgsql.sh
     - contents: |
            #!/usr/bin/env bash
            cd {{statusd}} || exit 1
            echo "BEGIN: $(date)"
+           export PGPASS="{{cfg.data.db.password}}"
            osm2pgsql -a {{rdata.osm2pgql_args.strip()}} \
             -H 127.0.0.1 -d "{{db}}" -U "{{db}}" changes.osc.gz
            ret=$?
            echo "END: $(date)"
            exit $ret
     - makedirs: true
-    - mode: 755
+    - mode: 750
     - user: {{cfg.user}}
     - group: {{cfg.group}}
     - template: jinja
@@ -220,9 +223,9 @@ osm-import-lastdiff-{{region}}:
       - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
     - name: >
-       {{cfg.data_root}}/{{region}}_diff_scripts/osmpgsql.sh
-       > {{cfg.data_root}}/{{region}}_diff_scripts/osmpgsql.sh.stdout
-       2> {{cfg.data_root}}/{{region}}_diff_scripts/osmpgsql.sh.stderr
+       {{cfg.data_root}}/{{region}}_diff_scripts/osm2pgsql.sh
+       > {{cfg.data_root}}/{{region}}_diff_scripts/osm2pgsql.sh.stdout
+       2> {{cfg.data_root}}/{{region}}_diff_scripts/osm2pgsql.sh.stderr
     - user: {{cfg.user}}
     - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:

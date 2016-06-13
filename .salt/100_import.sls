@@ -12,13 +12,24 @@ include:
 {% set fname = rdata.pbf.split('/')[-1] %}
 {% set hash = rdata.get('hash',
                         '{0}.md5'.format(rdata.pbf)) %}
-{% set pbf = "/".join([droot, fname]) %}
+{% set pbf = "/".join([droot, region, fname]) %}
 {% set orig_pbf = pbf %}
 {% set tmpfs_size = rdata.get('tmpfs_size', 0) %}
 
 # create the tempory db
 {{ pgsql.postgresql_db(db, template="postgis", wait_for_template=False) }}
 {{ pgsql.postgresql_user(db, password=cfg.data.db.password, db=db) }}
+
+osm-install-{{region}}-d:
+  file.directory:
+    - names:
+      - {{cfg.data_root}}/{{region}}
+      - {{cfg.data_root}}/{{region}}_diff
+      - {{cfg.data_root}}/{{region}}_diff_scripts
+    - makedirs: true
+    - mode: 744
+    - user: {{cfg.user}}
+    - group: {{cfg.group}}
 
 # download full osm export
 download-pbf-{{region}}:
@@ -27,9 +38,10 @@ download-pbf-{{region}}:
     - mode: 775
     - name: {{pbf}}
     - source_hash: {{hash}}
+    - makedirs: true
     - user: {{cfg.user}}
     - group: {{cfg.group}}
-    - unless: test -e {{droot}}/skip_import_{{region}}
+    - unless: test -e {{droot}}/{{region}}/skip_import
     # do not redownload big files
     - onlyif: test $(stat -c "%s" "{{pbf}}" 2>/dev/null||echo 0) -lt 1000000000
 
@@ -43,12 +55,12 @@ mountpbfintmpfs-{{region}}:
     - makedirs: true
     - user: {{cfg.user}}
     - group: {{cfg.group}}
-    - unless: test -e {{droot}}/skip_import_{{region}}
+    - unless: test -e {{droot}}/{{region}}/skip_import
     - watch:
       - file: download-pbf-{{region}}
   cmd.run:
     - name: mount -t tmpfs none "{{mount}}" -o size={{tmpfs_size}},rw,users,uid={{cfg.user}}
-    - unless: test -e {{droot}}/skip_import_{{region}}
+    - unless: test -e {{droot}}/{{region}}/skip_impor
     - onlyif: test "x$(mount|grep tmpfs|grep -q "{{mount}}";echo $?)" != "x0"
     - watch:
       - file: mountpbfintmpfs-{{region}}
@@ -61,7 +73,7 @@ copy-mountpbfintmpfs-{{region}}:
     - source: {{orig_pbf}}
     - user: {{cfg.user}}
     - group: {{cfg.group}}
-    - unless: test -e {{droot}}/skip_import_{{region}}
+    - unless: test -e {{droot}}/{{region}}/skip_import
     - watch:
       - file: mountpbfintmpfs-{{region}}
     - watch_in:
@@ -82,7 +94,7 @@ mcopy-mountpbfintmpfs-{{region}}:
 # run import
 do-import-{{region}}:
   file.managed:
-    - name: {{cfg.data_root}}/import_planet_{{region}}.sh
+    - name: {{cfg.data_root}}/{{region}}/import_planet.sh
     - mode: 750
     - user: {{cfg.user}}
     - group: {{cfg.group}}
@@ -91,17 +103,18 @@ do-import-{{region}}:
            export PGPASS="{{cfg.data.db.password}}"
            echo "BEGIN: $(date)"
            osm2pgsql -c {{rdata.osm2pgql_args.strip()}} \
+                  {{rdata.osm2pgsql_first_import_args.strip()}} \
                 -H 127.0.0.1 -d {{db}} -U {{db}} {{pbf}} && \
-                touch {{droot}}/skip_import_{{region}}
+                touch {{droot}}/{{region}}/skip_import
            ret=$?
            echo "END: $(date)"
            exit $ret
   cmd.run:
     - name: >
-       {{cfg.data_root}}/import_planet_{{region}}.sh
-       > {{cfg.data_root}}/import_planet_{{region}}.sh.stdout
-       2> {{cfg.data_root}}/import_planet_{{region}}.sh.stderr
-    - unless: test -e {{droot}}/skip_import_{{region}}
+       {{cfg.data_root}}/{{region}}/import_planet.sh
+       > {{cfg.data_root}}/{{region}}/import_planet.sh.stdout
+       2> {{cfg.data_root}}/{{region}}/mport_planet.sh.stderr
+    - unless: test -e {{droot}}/{{region}}/skip_import
     - user: {{cfg.user}}
     - watch:
       - file: do-import-{{region}}
@@ -119,7 +132,7 @@ umountpbfintmpfs-{{region}}:
       - cmd: do-replace-prod-{{region}}
 {% endif %}
 
-{% set prodswitch = "{0}/skip_prod_{1}".format(cfg.data_root, region) %}
+{% set prodswitch = "{0}/{1}/skip_prod".format(cfg.data_root, region) %}
 
 # replace production database by import
 do-replace-prod-{{region}}:
@@ -168,16 +181,17 @@ do-replace-prod-{{region}}-perms:
             die "${?}" grant3
             echo 'GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO {{prod_db}}_owners;'| psql -d "{{prod_db}}"
             die "${?}" grant4
-
 osm-install-cron-{{region}}:
   file.managed:
-    - name: {{cfg.data_root}}/minutediff-{{region}}
-    - mode: 700
-    - user: root
+    - name: {{cfg.data_root}}/{{region}}_diff_scripts/cron.sh
+    - makedirs: true
+    - mode: 755
+    - user: {{cfg.user}}
+    - group: {{cfg.user}}
     - source: ''
     - contents: |
                 #!/usr/bin/env bash
-                LOG="{{cfg.data_root}}/{{region}}.log"
+                LOG="{{cfg.data_root}}/{{region}}_diff_scripts/cron.log"
                 lock="${0}.lock"
                 find "${lock}" -type f -mmin +60 -delete 1>/dev/null 2>&1
                 if [ -e "${lock}" ];then
@@ -192,6 +206,8 @@ osm-install-cron-{{region}}:
                   cat "${LOG}"
                 fi
                 exit "${ret}"
+    - watch:
+      - file: osm-install-{{region}}-d
 
 osm-install-run-cron-{{region}}:
   file.managed:
@@ -204,6 +220,6 @@ osm-install-run-cron-{{region}}:
     - contents: |
                 #!/usr/bin/env bash
                 MAILTO="{{cfg.data.mail}}"
-                {{rdata.periodicity}} root {{cfg.data_root}}/minutediff-{{region}}
+                {{rdata.periodicity}} root {{cfg.data_root}}/{{region}}_diff_scripts/cron.sh
 {%endif%}
 {%endfor%}
