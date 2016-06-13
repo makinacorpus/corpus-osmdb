@@ -114,7 +114,7 @@ do-import-{{region}}:
     - name: >
        {{cfg.data_root}}/{{region}}/import_planet.sh
        > {{cfg.data_root}}/{{region}}/import_planet.sh.stdout
-       2> {{cfg.data_root}}/{{region}}/mport_planet.sh.stderr
+       2> {{cfg.data_root}}/{{region}}/import_planet.sh.stderr
     - unless: test -e {{droot}}/{{region}}/skip_import
     - user: {{cfg.user}}
     - watch:
