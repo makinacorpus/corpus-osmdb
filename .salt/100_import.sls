@@ -19,6 +19,7 @@ include:
 # create the tempory db
 {{ pgsql.postgresql_db(db, template="postgis", wait_for_template=False) }}
 {{ pgsql.postgresql_user(db, password=cfg.data.db.password, db=db) }}
+{{ pgsql.install_pg_exts(["hstore"], db=db, full=True) }} 
 
 osm-install-{{region}}-d:
   file.directory:
