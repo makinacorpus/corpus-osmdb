@@ -53,7 +53,7 @@ first-minutediff-{{region}}-initialimport-t:
     - group: {{cfg.group}}
     - template: jinja
     - defaults:
-        ttl: {{rdata.ttl}}
+        ttl: {{rdata.get('fttl', data.fttl)}}
     - watch:
       - cmd: first-minutediff-{{region}}-status
     - watch_in:
@@ -137,7 +137,7 @@ minutediff-{{region}}-import-ttl:
     - group: {{cfg.user}}
     - template: jinja
     - defaults:
-        ttl: {{60*60*24*3}}
+        ttl: {{rdata.get('ttl', data.ttl)}}
     - watch:
       - cmd: osm-import-{{region}}
 

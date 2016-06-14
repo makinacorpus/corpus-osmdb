@@ -1,7 +1,8 @@
 {% import "makina-states/services/db/postgresql/init.sls" as pgsql with context %}
+{% set cfg = opts.ms_project %}
 include:
   - makina-states.services.db.postgresql.hooks
-{% set cfg = opts.ms_project %}
+
 {% set data = cfg.data %}
 {% for region, rdata in data.regions.items() %}
 {% set name = 'planet_{0}'.format(region) %}
@@ -19,18 +20,7 @@ include:
 # create the tempory db
 {{ pgsql.postgresql_db(db, template="postgis", wait_for_template=False) }}
 {{ pgsql.postgresql_user(db, password=cfg.data.db.password, db=db) }}
-{{ pgsql.install_pg_exts(["hstore"], db=db, full=True) }} 
-
-osm-install-{{region}}-d:
-  file.directory:
-    - names:
-      - {{cfg.data_root}}/{{region}}
-      - {{cfg.data_root}}/{{region}}_diff
-      - {{cfg.data_root}}/{{region}}_diff_scripts
-    - makedirs: true
-    - mode: 744
-    - user: {{cfg.user}}
-    - group: {{cfg.group}}
+{{ pgsql.install_pg_exts(["hstore"], db=db, full=True) }}
 
 # download full osm export
 download-pbf-{{region}}:
@@ -93,6 +83,10 @@ mcopy-mountpbfintmpfs-{{region}}:
 {% endif %}
 
 # run import
+osm-disable-cron-{{region}}:
+  file.absent:
+    - name: /etc/cron.d/minutediff-{{region}}
+
 do-import-{{region}}:
   file.managed:
     - name: {{cfg.data_root}}/{{region}}/import_planet.sh
@@ -118,6 +112,7 @@ do-import-{{region}}:
     - unless: test -e {{droot}}/{{region}}/skip_import
     - user: {{cfg.user}}
     - watch:
+      - file: osm-disable-cron-{{region}}
       - file: do-import-{{region}}
       - file: download-pbf-{{region}}
 
@@ -134,15 +129,9 @@ umountpbfintmpfs-{{region}}:
 {% endif %}
 
 {% set prodswitch = "{0}/{1}/skip_prod".format(cfg.data_root, region) %}
-
 # replace production database by import
 do-replace-prod-{{region}}:
   cmd.run:
-    - use_vt: true
-    - watch:
-      - cmd: do-import-{{region}}
-    - user: root
-    - unless: test -e "{{prodswitch}}"
     - name: |
             set -e
             die() {
@@ -157,18 +146,14 @@ do-replace-prod-{{region}}:
             die "${?}" rename
             echo 'alter database "{{prod_db}}" owner to "{{prod_db}}_owners"'| su postgres -c  psql
             die "${?}" grant
+    - user: root
     - onlyif: test "x$(echo '\l'|su postgres -c psql -- -t|awk '{print $1}'|grep -v '|'|sort -u|egrep -q "^{{db}}$";echo $?)" = "x0"
-
+    - unless: test -e "{{prodswitch}}"
+    - use_vt: true
+    - watch:
+      - cmd: do-import-{{region}}
 do-replace-prod-{{region}}-perms:
   cmd.run:
-    - watch_in:
-      - file: osm-install-cron-{{region}}
-    - watch:
-      - cmd: do-replace-prod-{{region}}
-    - user: postgres
-    - cwd: /
-    - unless: test "x$(echo 'select * from planet_osm_nodes limit 3;'|psql "postgresql://{{prod_db}}:{{cfg.data.db.password}}@localhost:5432/{{prod_db}}" -t|wc -l)" = "x4"
-
     - name: |
             set -e
             die() {
@@ -181,46 +166,11 @@ do-replace-prod-{{region}}-perms:
             echo 'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO {{prod_db}}_owners;'| psql -d "{{prod_db}}"
             die "${?}" grant3
             echo 'GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO {{prod_db}}_owners;'| psql -d "{{prod_db}}"
-            die "${?}" grant4
-osm-install-cron-{{region}}:
-  file.managed:
-    - name: {{cfg.data_root}}/{{region}}_diff_scripts/cron.sh
-    - makedirs: true
-    - mode: 755
-    - user: {{cfg.user}}
-    - group: {{cfg.user}}
-    - source: ''
-    - contents: |
-                #!/usr/bin/env bash
-                LOG="{{cfg.data_root}}/{{region}}_diff_scripts/cron.log"
-                lock="${0}.lock"
-                find "${lock}" -type f -mmin +60 -delete 1>/dev/null 2>&1
-                if [ -e "${lock}" ];then
-                  echo "Locked ${0}";exit 1
-                fi
-                touch "${lock}"
-                salt-call --local --out-file="${LOG}" --retcode-passthrough -lall --local \
-                      mc_project.run_task {{cfg.name}} task_minutediff region="{{region}}" 1>/dev/null 2>/dev/null
-                ret="${?}"
-                rm -f "${lock}"
-                if [ "x${ret}" != "x0" ];then
-                  cat "${LOG}"
-                fi
-                exit "${ret}"
+            die "${?}" grant
+    - user: postgres
+    - cwd: /
+    - unless: test "x$(echo 'select * from planet_osm_nodes limit 3;'|psql "postgresql://{{prod_db}}:{{cfg.data.db.password}}@localhost:5432/{{prod_db}}" -t|wc -l)" = "x4"
     - watch:
-      - file: osm-install-{{region}}-d
-
-osm-install-run-cron-{{region}}:
-  file.managed:
-    - watch:
-      - file: osm-install-cron-{{region}}
-    - name: /etc/cron.d/minutediff-{{region}}
-    - mode: 700
-    - user: root
-    - source: ''
-    - contents: |
-                #!/usr/bin/env bash
-                MAILTO="{{cfg.data.mail}}"
-                {{rdata.periodicity}} root {{cfg.data_root}}/{{region}}_diff_scripts/cron.sh
+      - cmd: do-replace-prod-{{region}}
 {%endif%}
 {%endfor%}
