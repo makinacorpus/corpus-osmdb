@@ -15,6 +15,18 @@
 {% set status = "{0}/status.txt".format(statusd) %}
 # update last minute diff status file
 
+
+{% macro silent_cmd(cmd) %}
+    - name: |
+            {{cmd}} 1>'{{cmd}}.stdout' 2>'{{cmd}}.stderr'
+            ret=$?
+            if [ "x${ret}" != "x0" ];then
+              cat '{{cmd}}.stdout'
+              cat '{{cmd}}.stderr'
+            fi
+            exit $ret
+{% endmacro %}
+
 minutediff-{{region}}-scripts:
   mc_proxy.hook : []
 
@@ -85,12 +97,10 @@ first-minutediff-{{region}}-initialimport:
     - watch_in:
       - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
-    - name: >
-       {{cfg.data_root}}/{{region}}_diff_scripts/ftosmosis.sh
-       > {{cfg.data_root}}/{{region}}_diff_scripts/ftosmosis.sh.stdout
-       2> {{cfg.data_root}}/{{region}}_diff_scripts/ftosmosis.sh.stderr
-    - unless: test -e "{{statusd}}/initial_import_{{region}}"
     - user: {{cfg.user}}
+    {{silent_cmd('{0}/{1}_diff_scripts/ftosmosis.sh'.format(
+        cfg.data_root, region))}}
+    - unless: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
       - mc_proxy: minutediff-{{region}}-scripts
       - file: first-minutediff-{{region}}-initialimport-t
@@ -118,11 +128,9 @@ osm-import-{{region}}:
     - watch_in:
       - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
-    - name: >
-       {{cfg.data_root}}/{{region}}_diff_scripts/ftosm2pgsql.sh
-       > {{cfg.data_root}}/{{region}}_diff_scripts/ftosm2pgsql.sh.stdout
-       2> {{cfg.data_root}}/{{region}}_diff_scripts/ftosm2pgsql.sh.stderr
     - user: {{cfg.user}}
+    {{silent_cmd('{0}/{1}_diff_scripts/ftosm2pgsql.sh'.format(
+        cfg.data_root, region))}}
     - unless: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
       - cmd: first-minutediff-{{region}}-initialimport
@@ -191,11 +199,9 @@ osm-pull-lastdiff-{{region}}:
     - watch_in:
       - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
-    - name: >
-       {{cfg.data_root}}/{{region}}_diff_scripts/osmosis.sh
-       > {{cfg.data_root}}/{{region}}_diff_scripts/osmosis.sh.stdout
-       2> {{cfg.data_root}}/{{region}}_diff_scripts/osmosis.sh.stderr
     - user: {{cfg.user}}
+    {{silent_cmd('{0}/{1}_diff_scripts/osmosis.sh'.format(
+        cfg.data_root, region)  )}}
     - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
       - cmd: minutediff-{{region}}-import-pre
@@ -222,11 +228,9 @@ osm-import-lastdiff-{{region}}:
     - watch_in:
       - mc_proxy: minutediff-{{region}}-scripts
   cmd.run:
-    - name: >
-       {{cfg.data_root}}/{{region}}_diff_scripts/osm2pgsql.sh
-       > {{cfg.data_root}}/{{region}}_diff_scripts/osm2pgsql.sh.stdout
-       2> {{cfg.data_root}}/{{region}}_diff_scripts/osm2pgsql.sh.stderr
     - user: {{cfg.user}}
+    {{silent_cmd('{0}/{1}_diff_scripts/osm2pgsql.sh'.format(
+        cfg.data_root, region))}}
     - onlyif: test -e "{{statusd}}/initial_import_{{region}}"
     - watch:
       - cmd: osm-pull-lastdiff-{{region}}

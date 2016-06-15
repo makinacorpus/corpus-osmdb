@@ -1,6 +1,7 @@
 {% set cfg = opts.ms_project %}
 {% set data = cfg.data %}
 {% for region, rdata in data.regions.items() %}
+{% if region in data.build %}
 osm-install-{{region}}-minutediff:
   mc_proxy.hook: []
 osm-install-{{region}}-d:
@@ -28,13 +29,18 @@ osm-install-cron-{{region}}:
                 LOG="{{cfg.data_root}}/{{region}}_diff_scripts/cron.log"
                 lock="${0}.lock"
                 find "${lock}" -type f -mmin +60 -delete 1>/dev/null 2>&1
+                find "${LOG}" -type f -mmin +$((3*24*60)) -delete 1>/dev/null 2>&1
                 if [ -e "${lock}" ];then
                   echo "Locked ${0}";exit 1
                 fi
                 touch "${lock}"
-                salt-call --local --out-file="${LOG}" --retcode-passthrough -lall --local \
+                echo "cron date: $(date)" >> "${LOG}"
+                salt-call --local --out-file="${LOG}.last" --retcode-passthrough -lall --local \
                       mc_project.run_task {{cfg.name}} task_minutediff region="{{region}}" 1>/dev/null 2>/dev/null
                 ret="${?}"
+                cat "${LOG}.last"  >> "${LOG}" 2>/dev/null
+                echo "cron date end: $(date)" >> "${LOG}"
+                echo "ret: ${ret}" >> "${LOG}"
                 rm -f "${lock}"
                 if [ "x${ret}" != "x0" ];then
                   cat "${LOG}"
@@ -54,4 +60,5 @@ osm-install-run-cron-{{region}}:
                 #!/usr/bin/env bash
                 MAILTO="{{cfg.data.mail}}"
                 {{rdata.periodicity}} root {{cfg.data_root}}/{{region}}_diff_scripts/cron.sh
+{% endif %}
 {% endfor %}
