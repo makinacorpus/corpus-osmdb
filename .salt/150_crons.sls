@@ -29,7 +29,7 @@ osm-install-cron-{{region}}:
                 LOG="{{cfg.data_root}}/{{region}}_diff_scripts/cron.log"
                 lock="${0}.lock"
                 find "${lock}" -type f -mmin +60 -delete 1>/dev/null 2>&1
-                find "${LOG}" -type f -mmin +$((3*24*60)) -delete 1>/dev/null 2>&1
+                find "${LOG}" -type f -size +30M -delete 1>/dev/null 2>&1
                 if [ -e "${lock}" ];then
                   echo "Locked ${0}";exit 1
                 fi
