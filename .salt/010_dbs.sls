@@ -16,8 +16,8 @@ include:
 {%endfor %}
 {%endfor%}
 {% for dbext in db.extra %}
-{% for db, dbdata in dbext.items() %}
-{{ pgsql.postgresql_db(db, template="postgis", wait_for_template=False) }}
-{{ pgsql.postgresql_user(dbdata.user, password=dbdata.password, db=db) }}
+{% for edb, dbdata in dbext.items() %}
+{{ pgsql.postgresql_db(edb, template="postgis", wait_for_template=False) }}
+{{ pgsql.postgresql_user(dbdata.user, password=dbdata.password, db=edb) }}
 {%endfor %}
 {%endfor %}

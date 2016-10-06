@@ -70,4 +70,7 @@ makina-projects.projectname:
     db:
       password: "{password}"
       extra: {}
+      #  - xxx:
+      #      user: xxx
+      #      password: secret
 # vim:set ft=yaml:

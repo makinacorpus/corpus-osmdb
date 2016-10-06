@@ -152,6 +152,7 @@ minutediff-{{region}}-import-ttl:
 # grab the last data for 3 hours each hour to be sure everything is ok
 minutediff-{{region}}-import-pre:
   file.managed:
+    - onlyif: test -e "{{cfg.data_root}}/initial_import_{{region}}"
     - name: {{cfg.data_root}}/{{region}}_diff_scripts/genimport.py
     - user: {{cfg.user}}
     - mode: 750
@@ -187,7 +188,7 @@ osm-pull-lastdiff-{{region}}:
            echo "BEGIN: $(date)"
            export WORKDIR_OSM={{statusd}}
            osmosis --read-replication-interval workingDirectory=. \
-              --write-xml-change changes.osc.gz
+              --simplify-change --write-xml-change changes.osc.gz
            ret=$?
            echo "END: $(date)"
            exit $ret
