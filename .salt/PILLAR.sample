@@ -32,7 +32,7 @@ makina-projects.projectname:
         periodicity: "*/5 * * * *"
         initial_state: https://osm.mazdermind.de/replicate-sequences/?Y=2014&m=06&d=21&H=15&i=13&s=46&stream=minute#
         osm2pgql_args: >
-                       --number-processes 6 --cache-strategy optimized -C 20000
+                       --number-processes 6 --cache-strategy optimized -C 2000
                        --slim -k -v --flat-nodes {data_root}/france/flatnodes.dat
         pbf: http://download.geofabrik.de/europe/france-latest.osm.pbf
         osm2pgsql_first_import_args: ""
@@ -42,7 +42,7 @@ makina-projects.projectname:
         initial_state: https://osm.mazdermind.de/replicate-sequences/?Y=2016&m=06&d=09&H=15&i=11&s=57&stream=minute#
         osm2pgsql_first_import_args: ""
         osm2pgql_args: >
-                       --number-processes 6 --cache-strategy optimized -C 20000
+                       --number-processes 6 --cache-strategy optimized -C 2000
                        --slim -k -v --flat-nodes {data_root}/planet/flatnodes.dat
         pbf: http://planet.openstreetmap.org/pbf/planet-latest.osm.pbf
         tmpfs_size: 0
