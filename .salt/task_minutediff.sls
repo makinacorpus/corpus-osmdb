@@ -161,8 +161,8 @@ minutediff-{{region}}-import-pre:
                 import datetime
                 import urllib2
                 import sys
-                hours = int({{rdata.get('diff_hours', 1)}})
-                dt = datetime.datetime.now() - datetime.timedelta(hours=hours)
+                seconds = int({{rdata.get('ttl', data.ttl)}})
+                dt = datetime.datetime.now() - datetime.timedelta(seconds=seconds)
                 with open('{{statusd}}/state.txt', 'w') as fic:
                   content = urllib2.urlopen(
                     '{{data.diffurl}}'.format(
