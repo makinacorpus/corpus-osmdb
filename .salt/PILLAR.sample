@@ -59,10 +59,10 @@ makina-projects.projectname:
 #      - checkpoint_segments = 16
 #      - shared_buffers = 3328MB
 #      - max_connections = 80
-#       
 #      - fsync = off
 #      - synchronous_commit = off
-#      - autovacuum = off
+      # de/reactivate before/after planets imports
+#      - autovacuum = on
     cron_periodicity: "*/10 * * * *"
     password: "secret"
     sysctls:
