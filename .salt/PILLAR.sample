@@ -13,7 +13,7 @@
 # with the relevant pillar
 makina-projects.projectname:
   data:
-    diffurl: "http://osm.mazdermind.de/replicate-sequences/?Y={0}&m={1}&d={2}&H={3}&i={4}&s={5}&stream=minute"
+    diffurl: "https://osm.mazdermind.de/replicate-sequences/?Y={0}&m={1}&d={2}&H={3}&i={4}&s={5}&stream=minute"
     keep_days: '1'
     keep_lasts: '1'
     keep_monthes: '0'
@@ -34,7 +34,7 @@ makina-projects.projectname:
         osm2pgql_args: >
                        --number-processes 6 --cache-strategy optimized -C 2000
                        --slim -k -v --flat-nodes {data_root}/france/flatnodes.dat
-        pbf: http://download.geofabrik.de/europe/france-latest.osm.pbf
+        pbf: https://download.geofabrik.de/europe/france-latest.osm.pbf
         osm2pgsql_first_import_args: ""
         tmpfs_size: 3G
       planet:
@@ -44,7 +44,7 @@ makina-projects.projectname:
         osm2pgql_args: >
                        --number-processes 6 --cache-strategy optimized -C 2000
                        --slim -k -v --flat-nodes {data_root}/planet/flatnodes.dat
-        pbf: http://planet.openstreetmap.org/pbf/planet-latest.osm.pbf
+        pbf: https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf
         tmpfs_size: 0
 # uncomment in pillar and add any setting
 # you can start to tune with pgtune (apt-get install pgtune)
